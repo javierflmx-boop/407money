@@ -1,288 +1,674 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <meta name="apple-mobile-web-app-title" content="Money"/>
-  <meta name="theme-color" content="#F0A500"/>
-  <title>Money · JOVRO</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet"/>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box;}
-    body{background:#EDEAE4;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;}
-    @keyframes panelUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-    @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-    @keyframes rowUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
-  </style>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useEffect } = React;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="407AI">
+<title>407AI</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700;800;900&display=swap');
 
-const C = {
-  bg:"#EDEAE4",card1:"#F0A500",card2:"#D95C2E",card3:"#3D4A3E",
-  navy:"#1C2B3A",purple:"#5C4B8A",blue:"#4A90C4",text:"#1A1A1A",
-  dim:"#999",white:"#FFFFFF",green:"#2E7D4F",red:"#C0392B",
-};
-
-const fmt  = n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:0}).format(n);
-const fmt2 = n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2}).format(n);
-const TYPE_COLOR={job:C.card1,taxes:C.blue,payments:C.green};
-const TYPE_LABEL={job:"JOB",taxes:"TAX",payments:"PMT"};
-const SP_CATS=["Supplies","Transport","Bills","Food","Tools","Other"];
-
-const DEFAULT={
-  accounts:[],
-  spending:[],
-  incoming:[],
-  goals:[],
-};
-
-const KEY="jovro_money_v4";
-function load(){try{const d=localStorage.getItem(KEY);return d?JSON.parse(d):DEFAULT;}catch{return DEFAULT;}}
-function save(d){try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}}
-
-function Tag({children,color}){return <span style={{fontSize:7,letterSpacing:2,fontWeight:700,textTransform:"uppercase",background:color+"22",color,padding:"2px 6px",borderRadius:20}}>{children}</span>;}
-function FieldRow({label,children}){return <div style={{marginBottom:13}}><div style={{fontSize:8,letterSpacing:2,color:C.dim,fontWeight:700,textTransform:"uppercase",marginBottom:5}}>{label}</div>{children}</div>;}
-function Inp(p){return <input {...p} style={{width:"100%",boxSizing:"border-box",background:"#F5F3EF",border:"1px solid #e0dcd5",borderRadius:10,padding:"11px 14px",fontSize:14,fontFamily:"'DM Sans',sans-serif",color:C.text,outline:"none",...p.style}}/>;}
-function Sel({options,...p}){return <select {...p} style={{width:"100%",background:"#F5F3EF",border:"1px solid #e0dcd5",borderRadius:10,padding:"11px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",color:C.text,outline:"none"}}>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>;}
-function Toggle({value,onChange,label}){return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0"}}><span style={{fontSize:13,color:C.text}}>{label}</span><div onClick={()=>onChange(!value)} style={{width:42,height:24,borderRadius:12,background:value?C.card3:"#ddd",cursor:"pointer",position:"relative",transition:"background 0.2s"}}><div style={{position:"absolute",top:3,left:value?19:3,width:18,height:18,borderRadius:"50%",background:C.white,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/></div></div>);}
-function SaveBtn({label,color,onClick}){return <button onClick={onClick} style={{width:"100%",background:color,border:"none",borderRadius:12,color:C.white,padding:"14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginTop:6}}>{label}</button>;}
-
-function Sheet({title,onClose,children}){return(
-  <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
-    <div style={{background:C.white,borderRadius:"22px 22px 0 0",width:"100%",maxWidth:430,padding:"20px 22px 44px",maxHeight:"90vh",overflowY:"auto",animation:"sheetUp 0.3s cubic-bezier(0.4,0,0.2,1)"}} onClick={e=>e.stopPropagation()}>
-      <div style={{width:36,height:4,background:"#ddd",borderRadius:2,margin:"0 auto 18px"}}/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-        <div style={{fontFamily:"'DM Serif Display',serif",fontSize:20,color:C.text}}>{title}</div>
-        <button onClick={onClose} style={{background:"#F0EDE7",border:"none",borderRadius:20,padding:"4px 12px",cursor:"pointer",fontSize:11,color:C.dim}}>✕</button>
-      </div>
-      {children}
-    </div>
-  </div>
-);}
-
-function FullPanel({bg,hero,children,onClose,addLabel,onAdd}){return(
-  <div style={{position:"fixed",inset:0,zIndex:200,background:bg,display:"flex",flexDirection:"column",animation:"panelUp 0.38s cubic-bezier(0.4,0,0.2,1)",maxWidth:430,margin:"0 auto"}}>
-    <div style={{padding:"52px 26px 22px",position:"relative",overflow:"hidden",flexShrink:0}}>
-      <div style={{position:"absolute",right:-40,top:-40,width:200,height:200,borderRadius:"50%",background:"rgba(255,255,255,0.06)"}}/>
-      <button onClick={onClose} style={{background:"rgba(255,255,255,0.14)",border:"none",borderRadius:20,color:"rgba(255,255,255,0.9)",padding:"6px 16px",fontSize:9,letterSpacing:2,fontWeight:700,cursor:"pointer",textTransform:"uppercase",marginBottom:18}}>↓ Close</button>
-      {hero}
-    </div>
-    <div style={{flex:1,overflowY:"auto",background:C.bg,borderRadius:"22px 22px 0 0",padding:"22px 20px 80px"}}>
-      {addLabel&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}><button onClick={onAdd} style={{background:bg,border:"none",borderRadius:20,color:C.white,padding:"7px 16px",fontSize:9,letterSpacing:2,fontWeight:700,cursor:"pointer",textTransform:"uppercase"}}>+ {addLabel}</button></div>}
-      {children}
-    </div>
-  </div>
-);}
-
-function Row({left,right,sub,accent,onDelete,recurring,tags,i=0}){return(
-  <div style={{background:C.white,borderRadius:14,padding:"13px 15px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 1px 5px rgba(0,0,0,0.05)",animation:`rowUp 0.22s ease ${i*0.035}s both`,borderLeft:accent?`3px solid ${accent}`:"none",marginBottom:9}}>
-    <div style={{flex:1,minWidth:0}}>
-      {(tags||recurring)&&<div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,flexWrap:"wrap"}}>{tags}{recurring&&<span style={{fontSize:6,color:C.blue,background:C.blue+"15",padding:"1px 5px",borderRadius:10,fontWeight:700}}>↻ REC</span>}</div>}
-      <div style={{fontSize:13,fontWeight:500,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{left}</div>
-      {sub&&<div style={{fontSize:9,color:C.dim,marginTop:2}}>{sub}</div>}
-    </div>
-    <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,marginLeft:10}}>
-      <div style={{fontSize:15,fontWeight:700,color:accent||C.text}}>{right}</div>
-      {onDelete&&<button onClick={onDelete} style={{background:"rgba(0,0,0,0.05)",border:"none",borderRadius:8,padding:"3px 7px",cursor:"pointer",fontSize:9,color:C.dim}}>✕</button>}
-    </div>
-  </div>
-);}
-
-function SH({label}){return <div style={{fontSize:8,letterSpacing:3,color:C.dim,fontWeight:700,textTransform:"uppercase",marginBottom:10,marginTop:4}}>{label}</div>;}
-
-function CardAdd({onClick}){return(
-  <button onClick={e=>{e.stopPropagation();onClick();}} style={{position:"absolute",bottom:12,right:12,background:"rgba(255,255,255,0.18)",border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,color:"rgba(255,255,255,0.8)",fontWeight:300}}>+</button>
-);}
-
-function App(){
-  const [data,setData]=useState(load);
-  const [panel,setPanel]=useState(null);
-  const [modal,setModal]=useState(null);
-  const [exp,setExp]=useState(false);
-  const [spCat,setSpCat]=useState("all");
-  const [inType,setInType]=useState("all");
-  const eS={label:"",amount:"",date:"",category:"Supplies",recurring:false};
-  const eI={label:"",amount:"",date:"",type:"job",status:"confirmed",recurring:false};
-  const eG={label:"",emoji:"🎯",target:"",saved:"0",color:C.card1};
-  const [sF,setSF]=useState(eS);
-  const [iF,setIF]=useState(eI);
-  const [gF,setGF]=useState(eG);
-
-  useEffect(()=>{save(data);},[data]);
-  const upd=p=>setData(d=>({...d,...p}));
-
-  const tBal=data.accounts.reduce((s,a)=>s+a.balance,0);
-  const tSpend=data.spending.reduce((s,x)=>s+x.amount,0);
-  const tInc=data.incoming.reduce((s,x)=>s+x.amount,0);
-  const net=tBal+tInc-tSpend;
-  const rCost=data.spending.filter(x=>x.recurring).reduce((s,x)=>s+x.amount,0);
-  const rInc=data.incoming.filter(x=>x.recurring).reduce((s,x)=>s+x.amount,0);
-  const cInc=data.incoming.filter(x=>x.status==="confirmed").reduce((s,x)=>s+x.amount,0);
-  const cf=cInc-rCost;
-  const pend=data.incoming.filter(x=>x.status==="pending");
-  const fS=spCat==="all"?data.spending:data.spending.filter(x=>x.category===spCat);
-  const fI=inType==="all"?data.incoming:data.incoming.filter(x=>x.type===inType);
-
-  const addS=()=>{if(!sF.label||!sF.amount)return;upd({spending:[...data.spending,{...sF,id:Date.now(),amount:parseFloat(sF.amount)}]});setSF(eS);setModal(null);};
-  const addI=()=>{if(!iF.label||!iF.amount)return;upd({incoming:[...data.incoming,{...iF,id:Date.now(),amount:parseFloat(iF.amount)}]});setIF(eI);setModal(null);};
-  const addG=()=>{if(!gF.label||!gF.target)return;upd({goals:[...data.goals,{...gF,id:Date.now(),target:parseFloat(gF.target),saved:parseFloat(gF.saved)||0}]});setGF(eG);setModal(null);};
-
-  const filterBtns=(items,active,set,labels)=>(
-    <div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap"}}>
-      {items.map(c=><button key={c} onClick={()=>set(c)} style={{background:active===c?"rgba(255,255,255,0.25)":"rgba(0,0,0,0.07)",color:active===c?C.white:C.dim,border:"none",borderRadius:20,padding:"5px 13px",fontSize:8,letterSpacing:2,fontWeight:700,cursor:"pointer",textTransform:"uppercase"}}>{labels?labels[c]||c:c==="all"?"All":c}</button>)}
-    </div>
-  );
-
-  const PANELS={
-    spending:(
-      <FullPanel bg={C.card2} onClose={()=>setPanel(null)} addLabel="Add" onAdd={()=>{setPanel(null);setModal("addS");}}
-        hero={<><div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Total Spending</div><div style={{fontFamily:"'DM Serif Display',serif",fontSize:52,color:C.white,lineHeight:1}}>{fmt(tSpend)}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:6}}>Recurring {fmt(rCost)}/mo</div></>}>
-        {filterBtns(["all",...SP_CATS],spCat,setSpCat)}
-        {fS.map((x,i)=><Row key={x.id} i={i} left={x.label} right={`−${fmt(x.amount)}`} sub={`${x.date} · ${x.category}`} accent={C.card2} recurring={x.recurring} onDelete={()=>upd({spending:data.spending.filter(s=>s.id!==x.id)})}/>)}
-      </FullPanel>
-    ),
-    earning:(
-      <FullPanel bg={C.card3} onClose={()=>setPanel(null)} addLabel="Add" onAdd={()=>{setPanel(null);setModal("addI");}}
-        hero={<><div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Total Earning</div><div style={{fontFamily:"'DM Serif Display',serif",fontSize:52,color:C.white,lineHeight:1}}>{fmt(tInc)}</div><div style={{display:"flex",gap:10,marginTop:12}}><div style={{background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 13px"}}><div style={{fontSize:7,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:2}}>Confirmed</div><div style={{fontSize:15,fontWeight:700,color:C.card1,marginTop:1}}>{fmt(cInc)}</div></div><div style={{background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 13px"}}><div style={{fontSize:7,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:2}}>Recurring</div><div style={{fontSize:15,fontWeight:700,color:"rgba(255,255,255,0.65)",marginTop:1}}>{fmt(rInc)}/mo</div></div></div></>}>
-        {filterBtns(["all","job","taxes","payments"],inType,setInType,{all:"All",...TYPE_LABEL})}
-        {fI.map((x,i)=><Row key={x.id} i={i} left={x.label} right={`+${fmt(x.amount)}`} sub={`${x.date} · ${x.status}`} accent={TYPE_COLOR[x.type]} recurring={x.recurring} tags={<Tag color={TYPE_COLOR[x.type]}>{TYPE_LABEL[x.type]}</Tag>} onDelete={()=>upd({incoming:data.incoming.filter(s=>s.id!==x.id)})}/>)}
-      </FullPanel>
-    ),
-    cashflow:(
-      <FullPanel bg={C.blue} onClose={()=>setPanel(null)}
-        hero={<><div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Cash Flow</div><div style={{fontFamily:"'DM Serif Display',serif",fontSize:52,color:C.white,lineHeight:1}}>{fmt(cf)}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:6}}>Confirmed income − recurring bills</div></>}>
-        <SH label="Confirmed Income"/>{data.incoming.filter(x=>x.status==="confirmed").map((x,i)=><Row key={x.id} i={i} left={x.label} right={`+${fmt(x.amount)}`} sub={x.date} accent={C.green} recurring={x.recurring}/>)}
-        <SH label="Recurring Bills"/>{data.spending.filter(x=>x.recurring).map((x,i)=><Row key={x.id} i={i} left={x.label} right={`−${fmt(x.amount)}`} sub={x.category} accent={C.card2} recurring/>)}
-        <SH label="Pending"/>{pend.map((x,i)=><Row key={x.id} i={i} left={x.label} right={`+${fmt(x.amount)}`} sub={x.date} accent={C.dim}/>)}
-      </FullPanel>
-    ),
-    recurring:(
-      <FullPanel bg={C.purple} onClose={()=>setPanel(null)}
-        hero={<><div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Recurring</div><div style={{fontFamily:"'DM Serif Display',serif",fontSize:52,color:C.white,lineHeight:1}}>{fmt(rInc-rCost)}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:6}}>Net monthly</div></>}>
-        <SH label="Monthly Income"/>{data.incoming.filter(x=>x.recurring).map((x,i)=><Row key={x.id} i={i} left={x.label} right={`+${fmt(x.amount)}`} sub={TYPE_LABEL[x.type]} accent={C.green} recurring onDelete={()=>upd({incoming:data.incoming.filter(s=>s.id!==x.id)})}/>)}
-        {!data.incoming.filter(x=>x.recurring).length&&<div style={{fontSize:12,color:C.dim,padding:"6px 0 14px"}}>No recurring income yet</div>}
-        <SH label="Monthly Bills"/>{data.spending.filter(x=>x.recurring).map((x,i)=><Row key={x.id} i={i} left={x.label} right={`−${fmt(x.amount)}`} sub={x.category} accent={C.card2} recurring onDelete={()=>upd({spending:data.spending.filter(s=>s.id!==x.id)})}/>)}
-        {!data.spending.filter(x=>x.recurring).length&&<div style={{fontSize:12,color:C.dim,padding:"6px 0"}}>No recurring bills yet</div>}
-      </FullPanel>
-    ),
-    goals:(
-      <FullPanel bg={C.navy} onClose={()=>setPanel(null)} addLabel="Add Goal" onAdd={()=>{setPanel(null);setModal("addG");}}>
-        <div slot="hero" style={{fontFamily:"'DM Serif Display',serif",fontSize:36,color:C.white}}>Where you're<br/><em>heading</em></div>
-        {data.goals.map((g,i)=>{const pct=Math.min(100,(g.saved/g.target)*100);return(
-          <div key={g.id} style={{background:C.white,borderRadius:16,padding:"16px",marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,0.06)",animation:`rowUp 0.22s ease ${i*0.06}s both`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{fontSize:22}}>{g.emoji}</div><div><div style={{fontSize:13,fontWeight:600,color:C.text}}>{g.label}</div><div style={{fontSize:10,color:C.dim,marginTop:1}}>{fmt(g.saved)} of {fmt(g.target)}</div></div></div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{fontFamily:"'DM Serif Display',serif",fontSize:22,color:g.color}}>{pct.toFixed(0)}%</div><button onClick={()=>upd({goals:data.goals.filter(x=>x.id!==g.id)})} style={{background:"rgba(0,0,0,0.05)",border:"none",borderRadius:8,padding:"3px 7px",cursor:"pointer",fontSize:9,color:C.dim}}>✕</button></div>
-            </div>
-            <div style={{background:"#F0EDE7",borderRadius:6,height:6,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:g.color,borderRadius:6,transition:"width 0.5s ease"}}/></div>
-            <div style={{fontSize:9,color:C.dim,marginTop:5}}>{fmt(g.target-g.saved)} remaining</div>
-          </div>
-        );})}
-      </FullPanel>
-    ),
-  };
-
-  const MODALS={
-    addS:(<Sheet title="Add Spending" onClose={()=>setModal(null)}><FieldRow label="Description"><Inp value={sF.label} onChange={e=>setSF(p=>({...p,label:e.target.value}))} placeholder="e.g. Lumber – Home Depot"/></FieldRow><FieldRow label="Amount ($)"><Inp type="number" value={sF.amount} onChange={e=>setSF(p=>({...p,amount:e.target.value}))} placeholder="0"/></FieldRow><FieldRow label="Date"><Inp value={sF.date} onChange={e=>setSF(p=>({...p,date:e.target.value}))} placeholder="Mar 22"/></FieldRow><FieldRow label="Category"><Sel value={sF.category} onChange={e=>setSF(p=>({...p,category:e.target.value}))} options={SP_CATS}/></FieldRow><Toggle value={sF.recurring} onChange={v=>setSF(p=>({...p,recurring:v}))} label="Recurring monthly"/><SaveBtn label="Add Transaction" color={C.card2} onClick={addS}/></Sheet>),
-    addI:(<Sheet title="Add Income" onClose={()=>setModal(null)}><FieldRow label="Description"><Inp value={iF.label} onChange={e=>setIF(p=>({...p,label:e.target.value}))} placeholder="e.g. Deck Build – Torres"/></FieldRow><FieldRow label="Amount ($)"><Inp type="number" value={iF.amount} onChange={e=>setIF(p=>({...p,amount:e.target.value}))} placeholder="0"/></FieldRow><FieldRow label="Date"><Inp value={iF.date} onChange={e=>setIF(p=>({...p,date:e.target.value}))} placeholder="Mar 22"/></FieldRow><FieldRow label="Type"><Sel value={iF.type} onChange={e=>setIF(p=>({...p,type:e.target.value}))} options={["job","taxes","payments"]}/></FieldRow><FieldRow label="Status"><Sel value={iF.status} onChange={e=>setIF(p=>({...p,status:e.target.value}))} options={["confirmed","pending"]}/></FieldRow><Toggle value={iF.recurring} onChange={v=>setIF(p=>({...p,recurring:v}))} label="Recurring monthly"/><SaveBtn label="Add Income" color={C.card3} onClick={addI}/></Sheet>),
-    addG:(<Sheet title="New Goal" onClose={()=>setModal(null)}><FieldRow label="Goal Name"><Inp value={gF.label} onChange={e=>setGF(p=>({...p,label:e.target.value}))} placeholder="e.g. Family Trip – Europe"/></FieldRow><FieldRow label="Emoji"><Inp value={gF.emoji} onChange={e=>setGF(p=>({...p,emoji:e.target.value}))} placeholder="✈️"/></FieldRow><FieldRow label="Target ($)"><Inp type="number" value={gF.target} onChange={e=>setGF(p=>({...p,target:e.target.value}))} placeholder="10000"/></FieldRow><FieldRow label="Already Saved ($)"><Inp type="number" value={gF.saved} onChange={e=>setGF(p=>({...p,saved:e.target.value}))} placeholder="0"/></FieldRow><FieldRow label="Color"><div style={{display:"flex",gap:10,paddingTop:4}}>{[C.card1,C.green,C.blue,C.card2,"#9B59B6"].map(col=><div key={col} onClick={()=>setGF(p=>({...p,color:col}))} style={{width:28,height:28,borderRadius:"50%",background:col,cursor:"pointer",border:gF.color===col?"3px solid #1A1A1A":"3px solid transparent"}}/>)}</div></FieldRow><SaveBtn label="Add Goal" color={C.navy} onClick={addG}/></Sheet>),
-  };
-
-  return(
-    <div style={{background:C.bg,minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column",maxWidth:430,margin:"0 auto",position:"relative",overflow:"hidden"}}>
-      {panel&&PANELS[panel]}
-      {modal&&MODALS[modal]}
-
-      <div style={{padding:"52px 24px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-        <div><div style={{fontSize:9,letterSpacing:3,color:C.dim,fontWeight:700,textTransform:"uppercase"}}>My Finances</div><div style={{fontSize:11,color:C.dim,fontWeight:300}}>March 2026</div></div>
-        <div style={{width:36,height:36,borderRadius:"50%",background:C.card3,display:"flex",alignItems:"center",justifyContent:"center",color:C.white,fontWeight:700,fontSize:14}}>J</div>
-      </div>
-
-      <div style={{padding:"16px 22px 32px",display:"flex",flexDirection:"column",gap:12,flex:1}}>
-
-        <div onClick={()=>setExp(!exp)} style={{background:C.card1,borderRadius:22,padding:"22px 24px 16px",position:"relative",overflow:"hidden",cursor:"pointer"}}>
-          <div style={{position:"absolute",right:-28,bottom:-28,width:140,height:140,borderRadius:"50%",background:"rgba(255,255,255,0.15)"}}/>
-          <div style={{fontSize:8,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.38)",marginBottom:4}}>Total Balance</div>
-          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:46,lineHeight:1,color:C.text}}>{fmt(tBal)}</div>
-          <div style={{fontSize:11,color:"rgba(0,0,0,0.42)",marginTop:5}}>Net projected&nbsp;<span style={{fontWeight:700,color:net>=0?"#1A5C35":C.red}}>{fmt(net)}</span></div>
-          <div style={{maxHeight:exp?200:0,overflow:"hidden",transition:"max-height 0.35s ease",marginTop:exp?14:0}}>
-            <div style={{borderTop:"1px solid rgba(0,0,0,0.12)",paddingTop:12,display:"flex",flexDirection:"column",gap:7}}>
-              {data.accounts.map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:12,color:"rgba(0,0,0,0.52)",fontWeight:300}}>{a.name}</span><span style={{fontSize:12,fontWeight:700}}>{fmt2(a.balance)}</span></div>)}
-            </div>
-          </div>
-          <div style={{fontSize:7,letterSpacing:2,color:"rgba(0,0,0,0.26)",marginTop:8,textAlign:"right"}}>{exp?"COLLAPSE ↑":"SEE ACCOUNTS ↓"}</div>
-        </div>
-
-        <div style={{display:"flex",gap:12}}>
-          <div onClick={()=>setPanel("spending")} style={{flex:1,background:C.card2,borderRadius:22,padding:"20px 18px 36px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",right:-18,top:-18,width:90,height:90,borderRadius:"50%",background:"rgba(255,255,255,0.1)"}}/>
-            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:56,lineHeight:0.9,color:"rgba(255,255,255,0.9)",marginBottom:8}}>−</div>
-            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,color:C.white,lineHeight:1}}>{fmt(tSpend)}</div>
-            <div style={{fontSize:8,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(255,255,255,0.42)",marginTop:5}}>Spending</div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.32)",marginTop:2}}>{fmt(rCost)}/mo recurring</div>
-            <div style={{fontSize:7,letterSpacing:2,color:"rgba(255,255,255,0.25)",position:"absolute",bottom:12,left:18,fontWeight:700}}>TAP TO OPEN ↑</div>
-            <CardAdd onClick={()=>setModal("addS")}/>
-          </div>
-          <div onClick={()=>setPanel("earning")} style={{flex:1,background:C.card3,borderRadius:22,padding:"20px 18px 36px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",right:-18,top:-18,width:90,height:90,borderRadius:"50%",background:"rgba(255,255,255,0.07)"}}/>
-            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:56,lineHeight:0.9,color:"rgba(255,255,255,0.9)",marginBottom:8}}>+</div>
-            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,color:C.white,lineHeight:1}}>{fmt(tInc)}</div>
-            <div style={{fontSize:8,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(255,255,255,0.42)",marginTop:5}}>Earning</div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.32)",marginTop:2}}>{fmt(cInc)} confirmed</div>
-            <div style={{fontSize:7,letterSpacing:2,color:"rgba(255,255,255,0.25)",position:"absolute",bottom:12,left:18,fontWeight:700}}>TAP TO OPEN ↑</div>
-            <CardAdd onClick={()=>setModal("addI")}/>
-          </div>
-        </div>
-
-        <div style={{display:"flex",gap:12}}>
-          <div onClick={()=>setPanel("cashflow")} style={{flex:1,background:C.blue,borderRadius:18,padding:"16px 16px 14px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",right:-12,bottom:-12,width:60,height:60,borderRadius:"50%",background:"rgba(255,255,255,0.1)"}}/>
-            <div style={{fontSize:20,marginBottom:5,color:"rgba(255,255,255,0.8)"}}>〜</div>
-            <div style={{fontSize:7,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(255,255,255,0.45)",marginBottom:2}}>Cash Flow</div>
-            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:22,color:C.white,lineHeight:1}}>{fmt(cf)}</div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",marginTop:3}}>{pend.length} pending</div>
-          </div>
-          <div onClick={()=>setPanel("recurring")} style={{flex:1,background:C.purple,borderRadius:18,padding:"16px 16px 14px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",right:-12,bottom:-12,width:60,height:60,borderRadius:"50%",background:"rgba(255,255,255,0.1)"}}/>
-            <div style={{fontSize:20,marginBottom:5,color:"rgba(255,255,255,0.8)"}}>↻</div>
-            <div style={{fontSize:7,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(255,255,255,0.45)",marginBottom:2}}>Recurring</div>
-            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:22,color:C.white,lineHeight:1}}>{fmt(rInc-rCost)}</div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",marginTop:3}}>{data.spending.filter(x=>x.recurring).length} bills</div>
-          </div>
-        </div>
-
-        <div onClick={()=>setPanel("goals")} style={{background:C.navy,borderRadius:18,padding:"16px 18px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
-          <div style={{position:"absolute",right:-20,top:-20,width:100,height:100,borderRadius:"50%",background:"rgba(240,165,0,0.08)"}}/>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div><div style={{fontSize:7,letterSpacing:3,color:"rgba(255,255,255,0.32)",fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Goals & Savings</div><div style={{fontFamily:"'DM Serif Display',serif",fontSize:18,color:C.white}}>Where you're heading</div></div>
-            <div style={{fontSize:7,letterSpacing:2,color:"rgba(255,255,255,0.25)",fontWeight:700}}>OPEN ↑</div>
-          </div>
-          {data.goals.slice(0,3).map(g=>{const pct=Math.min(100,(g.saved/g.target)*100);return(
-            <div key={g.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-              <div style={{fontSize:14}}>{g.emoji}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:10,color:"rgba(255,255,255,0.65)"}}>{g.label}</span><span style={{fontSize:10,fontWeight:700,color:g.color}}>{pct.toFixed(0)}%</span></div>
-                <div style={{background:"rgba(255,255,255,0.1)",borderRadius:4,height:3,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:g.color,borderRadius:4}}/></div>
-              </div>
-            </div>
-          );})}
-          <button onClick={e=>{e.stopPropagation();setModal("addG");}} style={{marginTop:10,background:"rgba(255,255,255,0.07)",border:"none",borderRadius:20,color:"rgba(255,255,255,0.4)",padding:"5px 14px",fontSize:8,letterSpacing:2,fontWeight:700,cursor:"pointer",textTransform:"uppercase"}}>+ Add Goal</button>
-        </div>
-
-      </div>
-    </div>
-  );
+:root {
+  --bg: #f0ede6;
+  --white: #faf9f6;
+  --mango: #e8920a;
+  --mango-light: #f5a800;
+  --mango-glow: rgba(232,146,10,0.12);
+  --text: #1a1814;
+  --text2: #6b6560;
+  --border: #e2ddd6;
+  --card-amber: #e8920a;
+  --card-rust: #c4440a;
+  --card-dark: #1e1c18;
+  --card-sage: #4a6741;
+  --card-tan: #c8b99a;
+  --green: #4a6741;
+  --green-soft: #edf3eb;
+  --green-border: #b8cdb4;
+  --radius: 22px;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;}
+
+/* SPLASH */
+#splash{position:fixed;inset:0;z-index:999;background:var(--card-dark);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.7s ease;}
+#splash.hide{opacity:0;pointer-events:none;}
+.splash-logo{font-size:100px;font-weight:100;letter-spacing:-6px;color:#fff;}
+.splash-logo b{color:var(--mango-light);font-weight:300;}
+.splash-bar{width:40px;height:2px;background:var(--mango);margin-top:32px;border-radius:2px;animation:barGrow 1.8s ease-in-out infinite;}
+.splash-sub{font-size:10px;font-weight:400;color:rgba(255,255,255,0.3);letter-spacing:4px;text-transform:uppercase;margin-top:16px;}
+@keyframes barGrow{0%,100%{width:20px;opacity:0.3}50%{width:60px;opacity:1}}
+
+/* HEADER */
+header{background:var(--white);border-bottom:1px solid var(--border);padding:16px 20px 14px;display:flex;align-items:center;flex-shrink:0;}
+.logo{font-size:22px;font-weight:200;letter-spacing:-0.5px;color:var(--text);}
+.logo b{color:var(--mango);font-weight:800;}
+.key-btn{margin-left:auto;background:none;border:1.5px solid var(--border);border-radius:100px;padding:7px 16px;font-family:'Outfit',sans-serif;font-size:11px;font-weight:600;letter-spacing:0.5px;color:var(--text2);cursor:pointer;transition:all 0.2s;}
+.key-btn.set{border-color:var(--green-border);color:var(--green);background:var(--green-soft);}
+
+/* BOTTOM TABS — big colored blocks, stacked card style */
+.tabs{display:flex;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom,0px);height:72px;position:relative;}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;position:relative;transition:all 0.2s;border-radius:16px 16px 0 0;margin:0 2px;}
+.tab-top-label{font-size:13px;font-weight:900;letter-spacing:-0.5px;color:rgba(0,0,0,0.5);transition:all 0.2s;line-height:1;}
+.tab-label{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(0,0,0,0.45);transition:all 0.2s;}
+
+/* Each tab its own bold color */
+#tab-chat{background:#8a9e2a;}
+#tab-photo{background:#e8520a;}
+#tab-estimates{background:#3aaedc;}
+#tab-settings{background:#f5b800;}
+
+/* Active tab pops up */
+.tab.active{transform:translateY(-6px);box-shadow:0 -4px 20px rgba(0,0,0,0.15);}
+.tab.active .tab-top-label{color:rgba(0,0,0,0.85);}
+.tab.active .tab-label{color:rgba(0,0,0,0.65);}
+.tab:not(.active){opacity:0.75;}
+
+/* SCREENS */
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.screen.active{display:flex;}
+
+/* CHAT */
+#chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;}
+#chat::-webkit-scrollbar{width:0;}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* User bubble */
+.msg-user{align-self:flex-end;max-width:80%;animation:rise 0.25s ease;}
+.msg-user-lbl{font-size:8px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--text2);margin-bottom:5px;text-align:right;padding-right:6px;}
+.msg-user-bbl{background:var(--card-dark);color:#f5f0e8;padding:14px 20px;border-radius:20px 20px 4px 20px;font-size:15px;font-weight:300;line-height:1.65;}
+
+/* AI quote card — money-app style */
+.msg-ai{align-self:flex-start;width:100%;animation:rise 0.25s ease;}
+.msg-ai-lbl{font-size:8px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--mango);margin-bottom:8px;padding-left:4px;}
+
+.quote-card{display:flex;flex-direction:column;gap:10px;}
+
+/* BIG total card */
+.qcard-total{background:var(--card-amber);border-radius:var(--radius);padding:26px 22px 22px;position:relative;overflow:hidden;box-shadow:0 6px 24px rgba(232,146,10,0.3);}
+.qcard-total::before{content:'';position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.1);}
+.qcard-total::after{content:'';position:absolute;right:30px;bottom:-50px;width:120px;height:120px;border-radius:50%;background:rgba(0,0,0,0.07);}
+.qcard-eyebrow{font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.6);margin-bottom:8px;position:relative;z-index:1;}
+.qcard-price{font-size:52px;font-weight:900;color:#fff;letter-spacing:-3px;line-height:0.95;position:relative;z-index:1;}
+.qcard-job{font-size:12px;font-weight:600;color:rgba(255,255,255,0.7);margin-top:12px;text-transform:uppercase;letter-spacing:1.5px;position:relative;z-index:1;}
+
+/* 2-column grid for sub-cards */
+.qcard-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+.qcard-mini{border-radius:18px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);}
+.qcard-mini::after{content:'';position:absolute;right:-20px;bottom:-20px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.08);}
+.qcard-mini-label{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;opacity:0.7;}
+.qcard-mini-val{font-size:26px;font-weight:900;letter-spacing:-1px;line-height:1;}
+.qcard-mini-sub{font-size:11px;font-weight:400;margin-top:4px;opacity:0.65;}
+
+.qcard-labor{background:#c4440a;color:#fff;}
+.qcard-materials{background:#e8dcc8;color:#3a2a10;}
+.qcard-other{background:#1e1c18;color:#fff;}
+.qcard-profit{background:#4a6741;color:#fff;}
+
+/* Note + save */
+.qcard-note{background:var(--white);border-radius:16px;padding:14px 18px;font-size:12px;font-weight:300;color:var(--text2);line-height:1.6;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+.qc-save{display:block;background:var(--white);border:none;border-radius:16px;width:100%;padding:15px 20px;font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--green);cursor:pointer;transition:all 0.2s;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.05);}
+.qc-save:active{background:var(--green-soft);}
+.qc-save.saved{background:var(--green-soft);}
+
+/* Plain AI message */
+.msg-ai-plain{background:var(--white);border:1px solid var(--border);border-radius:4px 20px 20px 20px;padding:14px 20px;font-size:15px;font-weight:300;line-height:1.72;color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,0.04);}
+
+/* Thinking */
+.thinking{align-self:flex-start;display:flex;gap:6px;align-items:center;padding:14px 20px;background:var(--white);border:1px solid var(--border);border-radius:4px 20px 20px 20px;}
+.dot{width:7px;height:7px;border-radius:50%;animation:bob 1.3s infinite ease-in-out;}
+.dot:nth-child(1){background:var(--mango);}
+.dot:nth-child(2){background:#d4cfc8;animation-delay:0.18s;}
+.dot:nth-child(3){background:#c8c3bc;animation-delay:0.36s;}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* Chips */
+.chips{padding:4px 16px 12px;display:flex;gap:7px;overflow-x:auto;flex-shrink:0;scrollbar-width:none;}
+.chips::-webkit-scrollbar{display:none;}
+.chip{font-size:11px;font-weight:600;letter-spacing:0.3px;padding:8px 16px;background:var(--white);border:1.5px solid var(--border);color:var(--text2);border-radius:100px;cursor:pointer;transition:all 0.2s;white-space:nowrap;flex-shrink:0;}
+.chip:active{border-color:var(--mango);color:var(--mango);background:var(--mango-glow);}
+
+/* Input bar */
+.bar{background:var(--white);border-top:1px solid var(--border);padding:10px 16px 12px;display:flex;gap:10px;align-items:flex-end;flex-shrink:0;}
+#inp{flex:1;background:var(--bg);border:1.5px solid var(--border);color:var(--text);padding:13px 20px;font-family:'Outfit',sans-serif;font-weight:300;font-size:15px;resize:none;min-height:48px;max-height:100px;outline:none;border-radius:100px;transition:border-color 0.2s,background 0.2s;line-height:1.5;}
+#inp:focus{border-color:var(--mango);background:var(--white);}
+#inp::placeholder{color:#b8b2aa;font-style:italic;}
+#go{background:var(--mango);color:#fff;border:none;width:48px;height:48px;border-radius:50%;font-size:20px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;box-shadow:0 4px 12px rgba(232,146,10,0.4);}
+#go:active{transform:scale(0.95);}
+#go:disabled{background:var(--border);box-shadow:none;cursor:not-allowed;}
+
+/* PHOTO SCREEN */
+#photoScreen{background:var(--bg);}
+.scroll{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px;}
+.scroll::-webkit-scrollbar{width:0;}
+.sec-lbl{font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--text2);}
+
+.upload-zone{background:var(--white);border:2px dashed var(--border);border-radius:var(--radius);padding:40px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;transition:all 0.2s;text-align:center;}
+.upload-zone.has-img{padding:0;overflow:hidden;border-style:solid;border-color:var(--mango);}
+.upload-icon{font-size:40px;}
+.upload-title{font-size:17px;font-weight:700;color:var(--text);}
+.upload-sub{font-size:13px;font-weight:300;color:var(--text2);line-height:1.5;}
+#previewImg{width:100%;max-height:260px;object-fit:cover;display:none;border-radius:20px;}
+
+.photo-note{background:var(--white);border:1.5px solid var(--border);border-radius:16px;padding:14px 18px;font-family:'Outfit',sans-serif;font-size:15px;font-weight:300;color:var(--text);outline:none;resize:none;min-height:72px;transition:border-color 0.2s;line-height:1.6;width:100%;}
+.photo-note:focus{border-color:var(--mango);}
+.photo-note::placeholder{color:#b8b2aa;font-style:italic;}
+
+.primary-btn{background:var(--card-dark);color:#fff;border:none;border-radius:16px;padding:17px;font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
+.primary-btn:active{transform:scale(0.98);}
+.primary-btn:disabled{background:var(--border);box-shadow:none;cursor:not-allowed;color:var(--text2);}
+
+.photo-result{background:var(--white);border-radius:var(--radius);padding:22px;font-size:15px;font-weight:300;line-height:1.72;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.08);}
+.photo-result.show{display:block;animation:rise 0.25s ease;}
+
+.ghost-btn{background:none;border:1.5px solid var(--border);border-radius:12px;padding:11px;font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text2);cursor:pointer;transition:all 0.2s;}
+.ghost-btn:active{border-color:#c4440a;color:#c4440a;}
+
+/* ESTIMATES */
+#estimatesScreen{background:var(--bg);}
+.est-list{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;}
+.est-list::-webkit-scrollbar{width:0;}
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;gap:12px;}
+.empty-icon{font-size:48px;}
+.empty-title{font-size:20px;font-weight:800;color:var(--text);}
+.empty-sub{font-size:14px;font-weight:300;color:var(--text2);line-height:1.65;}
+
+.est-card{background:var(--white);border-radius:var(--radius);overflow:hidden;animation:rise 0.25s ease;box-shadow:0 2px 10px rgba(0,0,0,0.06);}
+.est-card-stripe{height:4px;background:var(--mango);}
+.est-card-top{padding:16px 20px 14px;display:flex;align-items:flex-start;gap:12px;}
+.est-info{flex:1;min-width:0;}
+.est-job{font-size:15px;font-weight:700;color:var(--text);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.est-date{font-size:11px;font-weight:400;color:var(--text2);}
+.est-price{font-size:24px;font-weight:900;color:var(--mango);white-space:nowrap;flex-shrink:0;letter-spacing:-0.5px;}
+.est-actions{border-top:1px solid var(--border);display:flex;}
+.est-action{flex:1;padding:12px;text-align:center;font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text2);cursor:pointer;transition:all 0.15s;background:none;border:none;font-family:'Outfit',sans-serif;border-right:1px solid var(--border);}
+.est-action:last-child{border-right:none;}
+.est-action:active{background:var(--bg);}
+.est-action.share{color:var(--green);}
+.est-action.del{color:#c4440a;}
+
+/* SETTINGS */
+#settingsScreen{background:var(--bg);}
+.settings-card{background:var(--white);border-radius:var(--radius);overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.06);}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);gap:12px;}
+.settings-row:last-child{border-bottom:none;}
+.s-lbl{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;}
+.s-sub{font-size:11px;font-weight:300;color:var(--text2);}
+.settings-input{width:80px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;color:var(--text);text-align:center;outline:none;transition:border-color 0.2s;}
+.settings-input:focus{border-color:var(--mango);background:var(--white);}
+
+/* MODALS */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(26,24,20,0.5);z-index:200;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);}
+.modal-bg.open{display:flex;}
+.modal{background:var(--white);border-radius:28px 28px 0 0;padding:28px 22px 44px;width:100%;max-width:480px;display:flex;flex-direction:column;gap:16px;animation:slideUp 0.28s cubic-bezier(0.34,1.2,0.64,1);max-height:85vh;overflow-y:auto;}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;align-self:center;margin-bottom:4px;}
+.modal-title{font-size:20px;font-weight:800;}
+.modal-sub{font-size:13px;font-weight:300;color:var(--text2);line-height:1.55;}
+.modal-sub a{color:var(--mango);text-decoration:none;}
+.modal-row{display:flex;gap:8px;}
+.modal-input{flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;font-family:'Outfit',sans-serif;font-size:15px;font-weight:300;color:var(--text);outline:none;transition:border-color 0.2s;}
+.modal-input:focus{border-color:var(--mango);}
+.modal-input::placeholder{color:#b8b2aa;}
+.modal-eye{background:none;border:1.5px solid var(--border);border-radius:14px;padding:0 16px;font-size:16px;cursor:pointer;color:var(--text2);}
+.modal-save{background:var(--mango);color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(232,146,10,0.35);}
+.modal-cancel{background:none;border:none;font-family:'Outfit',sans-serif;font-size:14px;font-weight:500;color:var(--text2);cursor:pointer;text-align:center;padding:4px;}
+.detail-body{font-size:14px;font-weight:300;line-height:1.85;white-space:pre-wrap;background:var(--bg);border-radius:14px;padding:18px;color:var(--text);}
+.detail-share{background:var(--card-sage);color:#fff;border:none;border-radius:14px;padding:16px;font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;cursor:pointer;}
+
+#fileInput{display:none;}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-logo"><b>407</b>AI</div>
+  <div class="splash-bar"></div>
+  <div class="splash-sub">Construction Intelligence</div>
+</div>
+
+<header>
+  <div class="logo"><b>407</b>AI</div>
+  <button class="key-btn" id="keyBtn" onclick="openKeyModal()">API Key</button>
+</header>
+
+<!-- CHAT -->
+<div class="screen active" id="chatScreen">
+  <div id="chat">
+    <div class="msg-ai">
+      <div class="msg-ai-lbl">407AI</div>
+      <div class="msg-ai-plain">Describe the job — get a price instantly. Tap <strong>Photo</strong> to quote from a picture.</div>
+    </div>
+  </div>
+  <div class="chips">
+    <button class="chip" onclick="q('Bathroom 8x8 full renovation big tiles')">Bathroom 8×8</button>
+    <button class="chip" onclick="q('Kitchen standard full renovation')">Kitchen</button>
+    <button class="chip" onclick="q('Living room 15x20 hardwood floors')">Floors 15×20</button>
+    <button class="chip" onclick="q('Bedroom 12x12 drywall and paint')">Drywall + Paint</button>
+    <button class="chip" onclick="q('Tile shower walls 5x8, I bring materials')">Tile Shower</button>
+    <button class="chip" onclick="q('Paint interior 3 bed 2 bath house')">House Paint</button>
+    <button class="chip" onclick="q('Replace kitchen cabinets 10x12 kitchen')">Cabinets</button>
+    <button class="chip" onclick="q('Basement finishing 20x30')">Basement</button>
+  </div>
+  <div class="bar">
+    <textarea id="inp" placeholder="e.g. Bathroom 8x8 full reno, big tiles…" rows="1"></textarea>
+    <button id="go" onclick="send()">↑</button>
+  </div>
+</div>
+
+<!-- PHOTO -->
+<div class="screen" id="photoScreen">
+  <div class="scroll">
+    <div class="sec-lbl">Photo Quote</div>
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+      <img id="previewImg" />
+      <div id="uploadPlaceholder">
+        <div class="upload-icon">📷</div>
+        <div class="upload-title">Take a photo or upload</div>
+        <div class="upload-sub">Room, job site, or damage — I'll analyze and price it</div>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" capture="environment" onchange="handlePhoto(event)" />
+    <div class="sec-lbl">Add details (optional)</div>
+    <textarea class="photo-note" id="photoNote" placeholder="e.g. Full reno, client wants big tiles, I bring materials…" rows="3"></textarea>
+    <button class="primary-btn" id="analyzeBtn" onclick="analyzePhoto()" disabled>Analyze &amp; Price This Job</button>
+    <div class="photo-result" id="photoResult"></div>
+    <button class="ghost-btn" id="clearBtn" onclick="clearPhoto()" style="display:none">✕ Clear Photo</button>
+  </div>
+</div>
+
+<!-- ESTIMATES -->
+<div class="screen" id="estimatesScreen">
+  <div class="est-list" id="estList"></div>
+</div>
+
+<!-- SETTINGS -->
+<div class="screen" id="settingsScreen">
+  <div class="scroll" style="gap:18px;">
+    <div class="sec-lbl">Your Rates</div>
+    <div class="settings-card">
+      <div class="settings-row">
+        <div><div class="s-lbl">Your Labor Rate</div><div class="s-sub">Your hourly rate ($/hr)</div></div>
+        <input class="settings-input" id="setLaborRate" type="number" placeholder="65" />
+      </div>
+      <div class="settings-row">
+        <div><div class="s-lbl">Helper Rate</div><div class="s-sub">Second worker ($/hr)</div></div>
+        <input class="settings-input" id="setHelperRate" type="number" placeholder="45" />
+      </div>
+      <div class="settings-row">
+        <div><div class="s-lbl">Profit Markup</div><div class="s-sub">Added on top of all costs (%)</div></div>
+        <input class="settings-input" id="setMarkup" type="number" placeholder="20" />
+      </div>
+      <div class="settings-row">
+        <div><div class="s-lbl">Your City</div><div class="s-sub">Affects material prices</div></div>
+        <input class="settings-input" id="setCity" type="text" placeholder="Orlando" style="width:100px;font-size:13px;" />
+      </div>
+    </div>
+    <button class="primary-btn" onclick="saveSettings()">Save Settings</button>
+    <div id="settingsSaved" style="text-align:center;font-size:12px;font-weight:700;letter-spacing:1px;color:var(--green);display:none">✓ SAVED</div>
+  </div>
+</div>
+
+<!-- BOTTOM TABS -->
+<div class="tabs">
+  <div class="tab active" id="tab-chat" onclick="switchTab('chat')">
+    <div class="tab-top-label">$</div>
+    <div class="tab-label">Quote</div>
+  </div>
+  <div class="tab" id="tab-photo" onclick="switchTab('photo')">
+    <div class="tab-top-label">CAM</div>
+    <div class="tab-label">Photo</div>
+  </div>
+  <div class="tab" id="tab-estimates" onclick="switchTab('estimates')">
+    <div class="tab-top-label">EST</div>
+    <div class="tab-label">Estimates</div>
+  </div>
+  <div class="tab" id="tab-settings" onclick="switchTab('settings')">
+    <div class="tab-top-label">SET</div>
+    <div class="tab-label">Settings</div>
+  </div>
+</div>
+
+<!-- KEY MODAL -->
+<div class="modal-bg" id="keyModal" onclick="closeKeyModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">API Key</div>
+    <div class="modal-sub">Get one at <a href="https://platform.anthropic.com" target="_blank">platform.anthropic.com</a> → API Keys → Create Key.</div>
+    <div class="modal-row">
+      <input class="modal-input" id="keyInp" type="password" placeholder="sk-ant-api03-…" />
+      <button class="modal-eye" onclick="toggleKey()">👁</button>
+    </div>
+    <button class="modal-save" onclick="saveKey()">Save Key</button>
+    <button class="modal-cancel" onclick="closeKeyModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-bg" id="detailModal" onclick="closeDetail(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="detailTitle"></div>
+    <div class="modal-sub" id="detailDate"></div>
+    <div class="detail-body" id="detailBody"></div>
+    <button class="detail-share" onclick="shareCurrentDetail()">📤 Share Estimate</button>
+    <button class="modal-cancel" onclick="closeDetail()">Close</button>
+  </div>
+</div>
+
+<script>
+let history=[],keyVis=false,currentDetail=null,currentPhotoB64=null;
+
+function getKey(){return localStorage.getItem('407ai_key')||'';}
+function saveKey(){
+  const v=document.getElementById('keyInp').value.trim();
+  if(!v.startsWith('sk-ant-')){alert('Please enter a valid key (starts with sk-ant-)');return;}
+  localStorage.setItem('407ai_key',v);
+  document.getElementById('keyBtn').textContent='Key ✓';
+  document.getElementById('keyBtn').classList.add('set');
+  closeKeyModal();
+}
+function openKeyModal(){document.getElementById('keyModal').classList.add('open');if(getKey())document.getElementById('keyInp').value=getKey();}
+function closeKeyModal(e){if(!e||e.target===document.getElementById('keyModal'))document.getElementById('keyModal').classList.remove('open');}
+function toggleKey(){const el=document.getElementById('keyInp');keyVis=!keyVis;el.type=keyVis?'text':'password';}
+
+function switchTab(t){
+  ['chat','photo','estimates','settings'].forEach(s=>{
+    document.getElementById(s+'Screen').classList.toggle('active',s===t);
+    document.getElementById('tab-'+s).classList.toggle('active',s===t);
+  });
+  if(t==='estimates')renderEstimates();
+  if(t==='settings')loadSettingsUI();
+}
+
+function getSettings(){try{return JSON.parse(localStorage.getItem('407ai_settings')||'{}');}catch{return{};}}
+function loadSettingsUI(){
+  const s=getSettings();
+  document.getElementById('setLaborRate').value=s.laborRate||'';
+  document.getElementById('setHelperRate').value=s.helperRate||'';
+  document.getElementById('setMarkup').value=s.markup||'';
+  document.getElementById('setCity').value=s.city||'';
+}
+function saveSettings(){
+  const s={laborRate:document.getElementById('setLaborRate').value||'65',helperRate:document.getElementById('setHelperRate').value||'45',markup:document.getElementById('setMarkup').value||'20',city:document.getElementById('setCity').value||'Orlando'};
+  localStorage.setItem('407ai_settings',JSON.stringify(s));
+  const el=document.getElementById('settingsSaved');el.style.display='block';
+  setTimeout(()=>el.style.display='none',3000);
+}
+
+function buildSystem(){
+  const s=getSettings();
+  const labor=s.laborRate||'65',helper=s.helperRate||'45',markup=s.markup||'20',city=s.city||'Orlando';
+  return `You are 407AI — construction quoting assistant for ${city}.
+
+PRICES: Labor $${labor}/hr lead + $${helper}/hr helper (2 workers) | Kitchen $12k-18k std / $20k-30k high | Bathroom small $6k-9k / large $10k-15k | Tile $10-15/sqft | Hardwood $8-12/sqft | LVP $5-8/sqft | Drywall $4-6/sqft | Paint $2-4/sqft | Cabinets $200-400/linear ft | Basement $25-50/sqft | Transport $50-80 | Disposal $80-150 | ${markup}% profit | 10% labor buffer
+
+RULES: Quote instantly. No questions. Smart assumptions. "I bring materials" = labor only. Never lose money.
+
+RESPOND ONLY in this exact format — no extra text, no markdown:
+TITLE: [job name max 4 words]
+LABOR: $X
+MATERIALS: $X
+MAT_LIST: [item1 ~$X, item2 ~$X, item3 ~$X, item4 ~$X]
+OTHER: $X
+OTHER_LIST: [Gas ~$X, Disposal ~$X, Insurance ~$X, Taxes ~$X]
+SUBTOTAL: $X
+PROFIT: $X
+QUOTE: $X – $X
+NOTE: [one sentence what could change this price]`;
+}
+
+function buildPhotoSystem(){
+  const s=getSettings();
+  const labor=s.laborRate||'65',helper=s.helperRate||'45',markup=s.markup||'20',city=s.city||'Orlando';
+  return `You are 407AI — construction quoting assistant for ${city}.
+Analyze the photo. Give a renovation quote instantly.
+
+PRICES: Labor $${labor}/hr + $${helper}/hr | Tile $10-15/sqft | Floors $6-12/sqft | Drywall $4-6/sqft | Paint $2-4/sqft | Transport $50-80 | Disposal $80-150 | ${markup}% profit
+
+RESPOND ONLY in this exact format:
+TITLE: [job name max 4 words]
+SCOPE: [what you see and what needs doing, 1 line]
+LABOR: $X
+MATERIALS: $X
+OTHER: $X
+SUBTOTAL: $X
+PROFIT: $X
+QUOTE: $X – $X
+NOTE: [one sentence what could change this price]`;
+}
+
+function parseStructured(text){
+  const get=(key)=>{const m=text.match(new RegExp('^'+key+':\\s*(.+)','im'));return m?m[1].trim():'';};
+  return{title:get('TITLE'),labor:get('LABOR'),materials:get('MATERIALS'),matList:get('MAT_LIST'),other:get('OTHER'),otherList:get('OTHER_LIST'),subtotal:get('SUBTOTAL'),profit:get('PROFIT'),quote:get('QUOTE'),scope:get('SCOPE'),note:get('NOTE')};
+}
+
+function toggleExpand(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const open=el.style.display==='block';
+  el.style.display=open?'none':'block';
+}
+
+function renderQuoteCard(p,rawText){
+  const esc=rawText.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
+  const tj=(p.title||'Job Estimate').replace(/'/g,"\\'");
+  const pq=(p.quote||'').replace(/'/g,"\\'");
+  const uid=Date.now();
+  // Format mat list
+  const matItems=p.matList?p.matList.replace(/[\[\]]/g,'').split(',').map(i=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.06);font-size:12px"><span>${i.trim()}</span></div>`).join(''):'';
+  const otherItems=p.otherList?p.otherList.replace(/[\[\]]/g,'').split(',').map(i=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.1);font-size:12px;color:rgba(255,255,255,0.8)"><span>${i.trim()}</span></div>`).join(''):'';
+  return `<div class="quote-card">
+  <div class="qcard-total">
+    <div class="qcard-eyebrow">Estimate · 407AI</div>
+    <div class="qcard-price">${p.quote||'—'}</div>
+    <div class="qcard-job">${p.title||''}</div>
+  </div>
+  <div class="qcard-grid">
+    ${p.labor?`<div class="qcard-mini qcard-labor"><div class="qcard-mini-label">Labor</div><div class="qcard-mini-val">${p.labor}</div><div class="qcard-mini-sub">2 workers</div></div>`:''}
+    ${p.materials?`<div class="qcard-mini qcard-materials" onclick="toggleExpand('mat-${uid}')" style="cursor:pointer">
+      <div class="qcard-mini-label">Materials <span style="opacity:0.5;font-size:8px">▼ TAP</span></div>
+      <div class="qcard-mini-val">${p.materials}</div>
+      <div class="qcard-mini-sub">Tap to see breakdown</div>
+      <div id="mat-${uid}" style="display:none;margin-top:10px;border-top:1px solid rgba(0,0,0,0.1);padding-top:8px">${matItems}</div>
+    </div>`:''}
+    ${p.other?`<div class="qcard-mini qcard-other" onclick="toggleExpand('oth-${uid}')" style="cursor:pointer">
+      <div class="qcard-mini-label">Job Costs <span style="opacity:0.5;font-size:8px">▼ TAP</span></div>
+      <div class="qcard-mini-val">${p.other}</div>
+      <div class="qcard-mini-sub">Tap to see breakdown</div>
+      <div id="oth-${uid}" style="display:none;margin-top:10px;border-top:1px solid rgba(255,255,255,0.15);padding-top:8px">${otherItems}</div>
+    </div>`:''}
+    ${p.profit?`<div class="qcard-mini" style="background:#2a2a2a;color:#fff;cursor:pointer" onclick="toggleExpand('prof-${uid}')">
+      <div class="qcard-mini-label" style="opacity:0.5">My Numbers <span style="font-size:8px">▼</span></div>
+      <div class="qcard-mini-val" style="font-size:18px">🔒 Private</div>
+      <div class="qcard-mini-sub" style="opacity:0.4">Tap to view</div>
+      <div id="prof-${uid}" style="display:none;margin-top:10px;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px">
+        <div style="font-size:11px;opacity:0.6;margin-bottom:4px">Subtotal: ${p.subtotal||'—'}</div>
+        <div style="font-size:22px;font-weight:900;color:var(--mango)">+${p.profit}</div>
+        <div style="font-size:10px;opacity:0.5;margin-top:2px">Your profit margin</div>
+      </div>
+    </div>`:''}
+  </div>
+  ${p.note?`<div class="qcard-note">${p.note}</div>`:''}
+  <button class="qc-save" onclick="(function(b){addEstimate('${tj}','${pq}',\`${esc}\`);b.textContent='✓ Saved to Estimates';b.classList.add('saved');b.onclick=null;})(this)">Save to Estimates</button>
+</div>`;
+}
+
+function handlePhoto(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      const maxW=1024,scale=img.width>maxW?maxW/img.width:1;
+      canvas.width=img.width*scale;canvas.height=img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      const compressed=canvas.toDataURL('image/jpeg',0.7);
+      currentPhotoB64=compressed.split(',')[1];
+      const prev=document.getElementById('previewImg');
+      prev.src=compressed;prev.style.display='block';
+      document.getElementById('uploadPlaceholder').style.display='none';
+      document.getElementById('uploadZone').classList.add('has-img');
+      document.getElementById('analyzeBtn').disabled=false;
+      document.getElementById('clearBtn').style.display='block';
+      document.getElementById('photoResult').classList.remove('show');
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearPhoto(){
+  currentPhotoB64=null;
+  document.getElementById('previewImg').style.display='none';
+  document.getElementById('previewImg').src='';
+  document.getElementById('uploadPlaceholder').style.display='flex';
+  document.getElementById('uploadZone').classList.remove('has-img');
+  document.getElementById('analyzeBtn').disabled=true;
+  document.getElementById('clearBtn').style.display='none';
+  document.getElementById('photoResult').classList.remove('show');
+  document.getElementById('fileInput').value='';
+}
+
+async function analyzePhoto(){
+  const key=getKey();if(!key){openKeyModal();return;}
+  if(!currentPhotoB64)return;
+  const note=document.getElementById('photoNote').value.trim();
+  const btn=document.getElementById('analyzeBtn');
+  const resultEl=document.getElementById('photoResult');
+  btn.disabled=true;btn.textContent='Analyzing…';resultEl.classList.remove('show');
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,system:buildPhotoSystem(),messages:[{role:'user',content:[
+        {type:'image',source:{type:'base64',media_type:'image/jpeg',data:currentPhotoB64}},
+        {type:'text',text:note?`Photo of job. Extra info: ${note}`:'Analyze this photo and give me a renovation quote.'}
+      ]}]})
+    });
+    const raw=await res.text();let data;
+    try{data=JSON.parse(raw);}catch{throw new Error('Could not read response.');}
+    if(!res.ok)throw new Error(data?.error?.message||'API error '+res.status);
+    const reply=data?.content?.[0]?.text||'Could not analyze.';
+    const p=parseStructured(reply);
+    const s=getSettings(),markup=s.markup||'20';
+    resultEl.innerHTML=`
+      <div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--text2);margin-bottom:10px">Photo Analysis</div>
+      ${p.scope?`<div style="font-size:13px;font-weight:300;color:var(--text2);line-height:1.55;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">${p.scope}</div>`:''}
+      <div style="font-size:42px;font-weight:900;color:var(--mango);letter-spacing:-2px;line-height:1">${p.quote||'—'}</div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin:8px 0 18px">${p.title||'Photo Quote'}</div>
+      <div style="display:flex;flex-direction:column;gap:10px;padding-top:4px;border-top:1px solid var(--border)">
+        ${p.labor?`<div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2);font-weight:300">Labor</span><span style="font-weight:700">${p.labor}</span></div>`:''}
+        ${p.materials?`<div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2);font-weight:300">Materials</span><span style="font-weight:700">${p.materials}</span></div>`:''}
+        ${p.other?`<div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2);font-weight:300">Other</span><span style="font-weight:700">${p.other}</span></div>`:''}
+        ${p.profit?`<div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2);font-weight:300">Profit (${markup}%)</span><span style="font-weight:700">${p.profit}</span></div>`:''}
+      </div>
+      ${p.note?`<div style="margin-top:14px;font-size:12px;font-weight:300;color:var(--text2);line-height:1.55">${p.note}</div>`:''}
+    `;
+    const saveBtn=document.createElement('button');
+    saveBtn.className='qc-save';saveBtn.style.marginTop='16px';saveBtn.style.width='100%';saveBtn.style.borderRadius='12px';
+    saveBtn.textContent='Save to Estimates';
+    saveBtn.onclick=function(){addEstimate(p.title||'Photo Quote',p.quote||'',reply);this.textContent='✓ Saved';this.classList.add('saved');this.onclick=null;};
+    resultEl.appendChild(saveBtn);
+    resultEl.classList.add('show');
+  }catch(e){
+    resultEl.innerHTML='<span style="color:#c4440a;font-size:14px">Error: '+(e.message||'Check your API key.')+'</span>';
+    resultEl.classList.add('show');
+  }
+  btn.disabled=false;btn.textContent='Analyze & Price This Job';
+}
+
+function getEstimates(){try{return JSON.parse(localStorage.getItem('407ai_est')||'[]');}catch{return[];}}
+function saveEstimates(arr){localStorage.setItem('407ai_est',JSON.stringify(arr));}
+function addEstimate(job,price,fullText){
+  const arr=getEstimates();
+  arr.unshift({id:Date.now(),job,price,fullText,date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})});
+  saveEstimates(arr);
+}
+function deleteEstimate(id){saveEstimates(getEstimates().filter(e=>e.id!==id));renderEstimates();}
+function renderEstimates(){
+  const arr=getEstimates();const el=document.getElementById('estList');el.innerHTML='';
+  if(!arr.length){el.innerHTML=`<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No estimates yet</div><div class="empty-sub">Quote a job and tap Save — share directly with clients from here.</div></div>`;return;}
+  arr.forEach(e=>{
+    const c=document.createElement('div');c.className='est-card';
+    c.innerHTML=`<div class="est-card-stripe"></div><div class="est-card-top"><div class="est-info"><div class="est-job">${e.job}</div><div class="est-date">${e.date}</div></div><div class="est-price">${e.price}</div></div><div class="est-actions"><button class="est-action" onclick="openDetail(${e.id})">View</button><button class="est-action share" onclick="shareEst(${e.id})">Share</button><button class="est-action del" onclick="deleteEstimate(${e.id})">Delete</button></div>`;
+    el.appendChild(c);
+  });
+}
+function openDetail(id){
+  const e=getEstimates().find(x=>x.id===id);if(!e)return;currentDetail=e;
+  document.getElementById('detailTitle').textContent=e.job;
+  document.getElementById('detailDate').textContent=e.date;
+  document.getElementById('detailBody').textContent=e.fullText;
+  document.getElementById('detailModal').classList.add('open');
+}
+function closeDetail(ev){if(!ev||ev.target===document.getElementById('detailModal'))document.getElementById('detailModal').classList.remove('open');}
+function shareCurrentDetail(){if(currentDetail)shareEst(currentDetail.id);closeDetail();}
+function shareEst(id){
+  const e=getEstimates().find(x=>x.id===id);if(!e)return;
+  const text=`ESTIMATE — 407 Renovations\nOrlando, FL\n\n${e.job}\n${e.date}\n\n${e.fullText}\n\n— Javier\n407 Renovations`;
+  if(navigator.share){navigator.share({title:'407 Renovations Estimate',text});}
+  else{navigator.clipboard.writeText(text).then(()=>alert('Copied! Paste in text or email.'));}
+}
+
+const chatEl=document.getElementById('chat');
+const inp=document.getElementById('inp');
+const go=document.getElementById('go');
+inp.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
+inp.addEventListener('input',()=>{inp.style.height='auto';inp.style.height=Math.min(inp.scrollHeight,100)+'px';});
+function q(t){inp.value=t;send();}
+
+function addMsg(role,text,rawText){
+  if(role==='user'){
+    const m=document.createElement('div');m.className='msg-user';
+    m.innerHTML=`<div class="msg-user-lbl">You</div><div class="msg-user-bbl">${text}</div>`;
+    chatEl.appendChild(m);
+  }else{
+    const m=document.createElement('div');m.className='msg-ai';
+    m.innerHTML=`<div class="msg-ai-lbl">407AI</div>`;
+    const p=parseStructured(rawText||text);
+    if(p.quote){m.innerHTML+=renderQuoteCard(p,rawText||text);}
+    else{m.innerHTML+=`<div class="msg-ai-plain">${text.replace(/\n/g,'<br>')}</div>`;}
+    chatEl.appendChild(m);
+  }
+  chatEl.scrollTop=chatEl.scrollHeight;
+}
+
+function showDots(){const el=document.createElement('div');el.className='thinking';el.id='dots';el.innerHTML='<div class="dot"></div><div class="dot"></div><div class="dot"></div>';chatEl.appendChild(el);chatEl.scrollTop=chatEl.scrollHeight;}
+function hideDots(){const el=document.getElementById('dots');if(el)el.remove();}
+
+async function send(){
+  const text=inp.value.trim();if(!text||go.disabled)return;
+  const key=getKey();if(!key){openKeyModal();return;}
+  inp.value='';inp.style.height='auto';go.disabled=true;
+  addMsg('user',text);history.push({role:'user',content:text});showDots();
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,system:buildSystem(),messages:history})
+    });
+    const raw=await res.text();let data;
+    try{data=JSON.parse(raw);}catch{throw new Error('Could not read response. Check your API key.');}
+    if(!res.ok)throw new Error(data?.error?.message||'API error '+res.status);
+    const reply=data?.content?.[0]?.text||'No response — try again.';
+    hideDots();addMsg('ai',reply,reply);history.push({role:'assistant',content:reply});
+  }catch(e){
+    hideDots();addMsg('ai','Error: '+(e.message||'Check your API key and connection.'));
+  }
+  go.disabled=false;inp.focus();
+}
+
+if(getKey()){document.getElementById('keyBtn').textContent='Key ✓';document.getElementById('keyBtn').classList.add('set');}
+setTimeout(()=>{const s=document.getElementById('splash');s.classList.add('hide');setTimeout(()=>s.remove(),600);},2200);
 </script>
 </body>
 </html>
