@@ -38,34 +38,13 @@ const TYPE_LABEL={job:"JOB",taxes:"TAX",payments:"PMT"};
 const SP_CATS=["Supplies","Transport","Bills","Food","Tools","Other"];
 
 const DEFAULT={
-  accounts:[
-    {id:1,name:"Chase Checking",balance:4820},
-    {id:2,name:"Wells Fargo Savings",balance:12300},
-    {id:3,name:"Cash",balance:340},
-  ],
-  spending:[
-    {id:1,label:"Lumber & Materials",amount:1240,date:"Mar 18",category:"Supplies",recurring:false},
-    {id:2,label:"Fuel",amount:180,date:"Mar 20",category:"Transport",recurring:true},
-    {id:3,label:"Insurance",amount:420,date:"Mar 15",category:"Bills",recurring:true},
-    {id:4,label:"Tools & Equipment",amount:670,date:"Mar 12",category:"Tools",recurring:false},
-    {id:5,label:"Phone Bill",amount:95,date:"Mar 10",category:"Bills",recurring:true},
-    {id:6,label:"Lunch – Crew",amount:78,date:"Mar 08",category:"Food",recurring:false},
-  ],
-  incoming:[
-    {id:1,label:"Kitchen Remodel – Smith",amount:6500,date:"Mar 22",type:"job",status:"confirmed",recurring:false},
-    {id:2,label:"Bathroom Tile – Flores",amount:2800,date:"Mar 28",type:"job",status:"pending",recurring:false},
-    {id:3,label:"Tax Refund",amount:1200,date:"Apr 05",type:"taxes",status:"pending",recurring:false},
-    {id:4,label:"Rental – Kissimmee",amount:1450,date:"Apr 01",type:"payments",status:"confirmed",recurring:true},
-    {id:5,label:"Deck Build – Torres",amount:3200,date:"Apr 10",type:"job",status:"pending",recurring:false},
-  ],
-  goals:[
-    {id:1,label:"Family Trip – Europe",emoji:"✈️",target:8000,saved:2400,color:C.blue},
-    {id:2,label:"New Work Truck",emoji:"🚚",target:35000,saved:9500,color:C.card1},
-    {id:3,label:"Emergency Fund",emoji:"🛡️",target:15000,saved:12000,color:C.green},
-  ],
+  accounts:[],
+  spending:[],
+  incoming:[],
+  goals:[],
 };
 
-const KEY="jovro_money_v3";
+const KEY="jovro_money_v4";
 function load(){try{const d=localStorage.getItem(KEY);return d?JSON.parse(d):DEFAULT;}catch{return DEFAULT;}}
 function save(d){try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}}
 
