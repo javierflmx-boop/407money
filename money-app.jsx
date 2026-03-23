@@ -1,0 +1,472 @@
+import { useState, useRef, useEffect } from "react";
+
+const C = {
+  bg:    "#EDEAE4", card1: "#F0A500", card2: "#D95C2E",
+  card3: "#3D4A3E", navy:  "#1C2B3A", purple:"#5C4B8A",
+  blue:  "#4A90C4", text:  "#1A1A1A", dim:   "#999",
+  white: "#FFFFFF", green: "#2E7D4F", red:   "#C0392B",
+};
+
+const fmt  = (n) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:0}).format(n);
+const fmt2 = (n) => new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2}).format(n);
+
+const TYPE_COLOR = { job:C.card1, taxes:C.blue, payments:C.green };
+const TYPE_LABEL = { job:"JOB", taxes:"TAX", payments:"PMT" };
+const SP_CATS    = ["Supplies","Transport","Bills","Food","Tools","Other"];
+
+const DEFAULT = {
+  accounts: [
+    { id:1, name:"Chase Checking",      balance:4820  },
+    { id:2, name:"Wells Fargo Savings", balance:12300 },
+    { id:3, name:"Cash",                balance:340   },
+  ],
+  spending: [
+    { id:1, label:"Lumber & Materials", amount:1240, date:"Mar 18", category:"Supplies",  recurring:false },
+    { id:2, label:"Fuel",               amount:180,  date:"Mar 20", category:"Transport", recurring:true  },
+    { id:3, label:"Insurance",          amount:420,  date:"Mar 15", category:"Bills",     recurring:true  },
+    { id:4, label:"Tools & Equipment",  amount:670,  date:"Mar 12", category:"Tools",     recurring:false },
+    { id:5, label:"Phone Bill",         amount:95,   date:"Mar 10", category:"Bills",     recurring:true  },
+    { id:6, label:"Lunch – Crew",       amount:78,   date:"Mar 08", category:"Food",      recurring:false },
+  ],
+  incoming: [
+    { id:1, label:"Kitchen Remodel – Smith", amount:6500, date:"Mar 22", type:"job",      status:"confirmed", recurring:false },
+    { id:2, label:"Bathroom Tile – Flores",  amount:2800, date:"Mar 28", type:"job",      status:"pending",   recurring:false },
+    { id:3, label:"Tax Refund",              amount:1200, date:"Apr 05", type:"taxes",    status:"pending",   recurring:false },
+    { id:4, label:"Rental – Kissimmee",      amount:1450, date:"Apr 01", type:"payments", status:"confirmed", recurring:true  },
+    { id:5, label:"Deck Build – Torres",     amount:3200, date:"Apr 10", type:"job",      status:"pending",   recurring:false },
+  ],
+  goals: [
+    { id:1, label:"Family Trip – Europe", emoji:"✈️", target:8000,  saved:2400,  color:C.blue   },
+    { id:2, label:"New Work Truck",       emoji:"🚚", target:35000, saved:9500,  color:C.card1  },
+    { id:3, label:"Emergency Fund",       emoji:"🛡️", target:15000, saved:12000, color:C.green  },
+  ],
+};
+
+const STORE_KEY = "jovro_money_v3";
+function load() { try { const d=localStorage.getItem(STORE_KEY); return d?JSON.parse(d):DEFAULT; } catch { return DEFAULT; } }
+function save(d) { try { localStorage.setItem(STORE_KEY,JSON.stringify(d)); } catch {} }
+
+// ── Atoms ─────────────────────────────────────────────────────────────────────
+function Tag({ children, color }) {
+  return <span style={{fontSize:7,letterSpacing:2,fontWeight:700,textTransform:"uppercase",background:color+"22",color,padding:"2px 6px",borderRadius:20,fontFamily:"'DM Sans',sans-serif"}}>{children}</span>;
+}
+function FieldRow({ label, children }) {
+  return <div style={{marginBottom:13}}><div style={{fontSize:8,letterSpacing:2,color:C.dim,fontWeight:700,textTransform:"uppercase",marginBottom:5}}>{label}</div>{children}</div>;
+}
+function Inp({ ...p }) {
+  return <input {...p} style={{width:"100%",boxSizing:"border-box",background:"#F5F3EF",border:"1px solid #e0dcd5",borderRadius:10,padding:"11px 14px",fontSize:14,fontFamily:"'DM Sans',sans-serif",color:C.text,outline:"none",...p.style}}/>;
+}
+function Sel({ options, ...p }) {
+  return <select {...p} style={{width:"100%",background:"#F5F3EF",border:"1px solid #e0dcd5",borderRadius:10,padding:"11px 14px",fontSize:13,fontFamily:"'DM Sans',sans-serif",color:C.text,outline:"none"}}>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>;
+}
+function Toggle({ value, onChange, label }) {
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0"}}>
+      <span style={{fontSize:13,color:C.text}}>{label}</span>
+      <div onClick={()=>onChange(!value)} style={{width:42,height:24,borderRadius:12,background:value?C.card3:"#ddd",cursor:"pointer",position:"relative",transition:"background 0.2s"}}>
+        <div style={{position:"absolute",top:3,left:value?19:3,width:18,height:18,borderRadius:"50%",background:C.white,transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+      </div>
+    </div>
+  );
+}
+
+// ── Bottom sheet modal ────────────────────────────────────────────────────────
+function Sheet({ title, onClose, children }) {
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+      <div style={{background:C.white,borderRadius:"22px 22px 0 0",width:"100%",maxWidth:430,padding:"20px 22px 44px",maxHeight:"90vh",overflowY:"auto",animation:"sheetUp 0.3s cubic-bezier(0.4,0,0.2,1)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{width:36,height:4,background:"#ddd",borderRadius:2,margin:"0 auto 18px"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:20,color:C.text}}>{title}</div>
+          <button onClick={onClose} style={{background:"#F0EDE7",border:"none",borderRadius:20,padding:"4px 12px",cursor:"pointer",fontSize:11,color:C.dim,fontFamily:"'DM Sans',sans-serif"}}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+function SaveBtn({ label, color, onClick }) {
+  return <button onClick={onClick} style={{width:"100%",background:color,border:"none",borderRadius:12,color:C.white,padding:"14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",letterSpacing:1,marginTop:6}}>{label}</button>;
+}
+
+// ── Full-screen slide-up panel ────────────────────────────────────────────────
+function FullPanel({ bg, hero, children, onClose, addLabel, onAdd }) {
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:200,background:bg,display:"flex",flexDirection:"column",fontFamily:"'DM Sans',sans-serif",animation:"panelUp 0.38s cubic-bezier(0.4,0,0.2,1)",maxWidth:430,margin:"0 auto"}}>
+      <div style={{padding:"52px 26px 22px",position:"relative",overflow:"hidden",flexShrink:0}}>
+        <div style={{position:"absolute",right:-40,top:-40,width:200,height:200,borderRadius:"50%",background:"rgba(255,255,255,0.06)"}}/>
+        {/* close pill */}
+        <button onClick={onClose} style={{background:"rgba(255,255,255,0.14)",border:"none",borderRadius:20,color:"rgba(255,255,255,0.9)",padding:"6px 16px",fontSize:9,letterSpacing:2,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase",marginBottom:18}}>↓ Close</button>
+        {hero}
+      </div>
+      <div style={{flex:1,overflowY:"auto",background:C.bg,borderRadius:"22px 22px 0 0",padding:"22px 20px 80px"}}>
+        {addLabel && (
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
+            <button onClick={onAdd} style={{background:bg,border:"none",borderRadius:20,color:C.white,padding:"7px 16px",fontSize:9,letterSpacing:2,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase"}}>+ {addLabel}</button>
+          </div>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Row({ left, right, sub, accent, onDelete, recurring, tags, i=0 }) {
+  return (
+    <div style={{background:C.white,borderRadius:14,padding:"13px 15px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 1px 5px rgba(0,0,0,0.05)",animation:`rowUp 0.22s ease ${i*0.035}s both`,borderLeft:accent?`3px solid ${accent}`:"none",marginBottom:9}}>
+      <div style={{flex:1,minWidth:0}}>
+        {(tags||recurring) && (
+          <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3,flexWrap:"wrap"}}>
+            {tags}
+            {recurring&&<span style={{fontSize:6,letterSpacing:1,color:C.blue,background:C.blue+"15",padding:"1px 5px",borderRadius:10,fontWeight:700}}>↻ REC</span>}
+          </div>
+        )}
+        <div style={{fontSize:13,fontWeight:500,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{left}</div>
+        {sub&&<div style={{fontSize:9,color:C.dim,letterSpacing:1,marginTop:2}}>{sub}</div>}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,marginLeft:10}}>
+        <div style={{fontSize:15,fontWeight:700,color:accent||C.text}}>{right}</div>
+        {onDelete&&<button onClick={onDelete} style={{background:"rgba(0,0,0,0.05)",border:"none",borderRadius:8,padding:"3px 7px",cursor:"pointer",fontSize:9,color:C.dim}}>✕</button>}
+      </div>
+    </div>
+  );
+}
+
+function SectionHead({ label }) {
+  return <div style={{fontSize:8,letterSpacing:3,color:C.dim,fontWeight:700,textTransform:"uppercase",marginBottom:10,marginTop:4}}>{label}</div>;
+}
+
+// ── Small "add" button inside a card ─────────────────────────────────────────
+function CardAddBtn({ onClick, color="rgba(255,255,255,0.18)" }) {
+  return (
+    <button
+      onClick={e=>{ e.stopPropagation(); onClick(); }}
+      style={{
+        position:"absolute", bottom:12, right:12,
+        background:color, border:"none", borderRadius:"50%",
+        width:28, height:28, cursor:"pointer",
+        display:"flex", alignItems:"center", justifyContent:"center",
+        fontSize:16, color:"rgba(255,255,255,0.8)", fontWeight:300,
+        lineHeight:1,
+      }}
+    >+</button>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+export default function MoneyApp() {
+  const [data, setData]     = useState(load);
+  const [panel, setPanel]   = useState(null);
+  const [modal, setModal]   = useState(null);
+  const [expandAcc, setExp] = useState(false);
+  const [spCat, setSpCat]   = useState("all");
+  const [inType, setInType] = useState("all");
+
+  const emptyS = {label:"",amount:"",date:"",category:"Supplies",recurring:false};
+  const emptyI = {label:"",amount:"",date:"",type:"job",status:"confirmed",recurring:false};
+  const emptyG = {label:"",emoji:"🎯",target:"",saved:"0",color:C.card1};
+  const [sF, setSF] = useState(emptyS);
+  const [iF, setIF] = useState(emptyI);
+  const [gF, setGF] = useState(emptyG);
+
+  useEffect(()=>{ save(data); },[data]);
+  const upd = (p) => setData(d=>({...d,...p}));
+
+  const totalBal  = data.accounts.reduce((s,a)=>s+a.balance,0);
+  const totalSpend= data.spending.reduce((s,x)=>s+x.amount,0);
+  const totalInc  = data.incoming.reduce((s,x)=>s+x.amount,0);
+  const net       = totalBal+totalInc-totalSpend;
+  const recCost   = data.spending.filter(x=>x.recurring).reduce((s,x)=>s+x.amount,0);
+  const recInc    = data.incoming.filter(x=>x.recurring).reduce((s,x)=>s+x.amount,0);
+  const confInc   = data.incoming.filter(x=>x.status==="confirmed").reduce((s,x)=>s+x.amount,0);
+  const cashFlow  = confInc - recCost;
+  const pending   = data.incoming.filter(x=>x.status==="pending");
+
+  const addS = () => { if(!sF.label||!sF.amount)return; upd({spending:[...data.spending,{...sF,id:Date.now(),amount:parseFloat(sF.amount)}]}); setSF(emptyS); setModal(null); };
+  const addI = () => { if(!iF.label||!iF.amount)return; upd({incoming:[...data.incoming,{...iF,id:Date.now(),amount:parseFloat(iF.amount)}]}); setIF(emptyI); setModal(null); };
+  const addG = () => { if(!gF.label||!gF.target)return; upd({goals:[...data.goals,{...gF,id:Date.now(),target:parseFloat(gF.target),saved:parseFloat(gF.saved)||0}]}); setGF(emptyG); setModal(null); };
+
+  const filtS = spCat==="all"  ? data.spending : data.spending.filter(x=>x.category===spCat);
+  const filtI = inType==="all" ? data.incoming : data.incoming.filter(x=>x.type===inType);
+
+  // ── Panels ──────────────────────────────────────────────────────────────────
+  const PANELS = {
+    spending: (
+      <FullPanel bg={C.card2} onClose={()=>setPanel(null)} addLabel="Add" onAdd={()=>{ setPanel(null); setModal("addS"); }}
+        hero={<>
+          <div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Total Spending</div>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:52,color:C.white,lineHeight:1}}>{fmt(totalSpend)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:6}}>Recurring bills {fmt(recCost)}/mo</div>
+        </>}>
+        <div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap"}}>
+          {["all",...SP_CATS].map(c=>(
+            <button key={c} onClick={()=>setSpCat(c)} style={{background:spCat===c?C.card2:"rgba(0,0,0,0.07)",color:spCat===c?C.white:C.dim,border:"none",borderRadius:20,padding:"5px 13px",fontSize:8,letterSpacing:2,fontWeight:700,cursor:"pointer",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>{c==="all"?"All":c}</button>
+          ))}
+        </div>
+        {filtS.map((x,i)=><Row key={x.id} i={i} left={x.label} right={`−${fmt(x.amount)}`} sub={`${x.date} · ${x.category}`} accent={C.card2} recurring={x.recurring} onDelete={()=>upd({spending:data.spending.filter(s=>s.id!==x.id)})}/>)}
+      </FullPanel>
+    ),
+
+    earning: (
+      <FullPanel bg={C.card3} onClose={()=>setPanel(null)} addLabel="Add" onAdd={()=>{ setPanel(null); setModal("addI"); }}
+        hero={<>
+          <div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Total Earning</div>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:52,color:C.white,lineHeight:1}}>{fmt(totalInc)}</div>
+          <div style={{display:"flex",gap:10,marginTop:12}}>
+            <div style={{background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 13px"}}>
+              <div style={{fontSize:7,letterSpacing:2,color:"rgba(255,255,255,0.4)",textTransform:"uppercase"}}>Confirmed</div>
+              <div style={{fontSize:15,fontWeight:700,color:C.card1,marginTop:1}}>{fmt(confInc)}</div>
+            </div>
+            <div style={{background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"7px 13px"}}>
+              <div style={{fontSize:7,letterSpacing:2,color:"rgba(255,255,255,0.4)",textTransform:"uppercase"}}>Recurring</div>
+              <div style={{fontSize:15,fontWeight:700,color:"rgba(255,255,255,0.65)",marginTop:1}}>{fmt(recInc)}/mo</div>
+            </div>
+          </div>
+        </>}>
+        <div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap"}}>
+          {["all","job","taxes","payments"].map(t=>(
+            <button key={t} onClick={()=>setInType(t)} style={{background:inType===t?C.card3:"rgba(0,0,0,0.07)",color:inType===t?C.white:C.dim,border:"none",borderRadius:20,padding:"5px 13px",fontSize:8,letterSpacing:2,fontWeight:700,cursor:"pointer",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>{t==="all"?"All":TYPE_LABEL[t]}</button>
+          ))}
+        </div>
+        {filtI.map((x,i)=><Row key={x.id} i={i} left={x.label} right={`+${fmt(x.amount)}`} sub={`${x.date} · ${x.status}`} accent={TYPE_COLOR[x.type]} recurring={x.recurring} tags={<Tag color={TYPE_COLOR[x.type]}>{TYPE_LABEL[x.type]}</Tag>} onDelete={()=>upd({incoming:data.incoming.filter(s=>s.id!==x.id)})}/>)}
+      </FullPanel>
+    ),
+
+    cashflow: (
+      <FullPanel bg={C.blue} onClose={()=>setPanel(null)}
+        hero={<>
+          <div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Cash Flow</div>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:52,color:C.white,lineHeight:1}}>{fmt(cashFlow)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:6}}>Confirmed income − recurring bills</div>
+        </>}>
+        <SectionHead label="Confirmed Income"/>
+        {data.incoming.filter(x=>x.status==="confirmed").map((x,i)=><Row key={x.id} i={i} left={x.label} right={`+${fmt(x.amount)}`} sub={x.date} accent={C.green} recurring={x.recurring}/>)}
+        <SectionHead label="Recurring Bills"/>
+        {data.spending.filter(x=>x.recurring).map((x,i)=><Row key={x.id} i={i} left={x.label} right={`−${fmt(x.amount)}`} sub={`${x.date} · ${x.category}`} accent={C.card2} recurring/>)}
+        <SectionHead label="Pending"/>
+        {pending.map((x,i)=><Row key={x.id} i={i} left={x.label} right={`+${fmt(x.amount)}`} sub={x.date} accent={C.dim}/>)}
+      </FullPanel>
+    ),
+
+    recurring: (
+      <FullPanel bg={C.purple} onClose={()=>setPanel(null)}
+        hero={<>
+          <div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.5)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Recurring</div>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:52,color:C.white,lineHeight:1}}>{fmt(recInc-recCost)}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:6}}>Net monthly · income minus bills</div>
+        </>}>
+        <SectionHead label="Monthly Income"/>
+        {data.incoming.filter(x=>x.recurring).map((x,i)=><Row key={x.id} i={i} left={x.label} right={`+${fmt(x.amount)}`} sub={TYPE_LABEL[x.type]} accent={C.green} recurring onDelete={()=>upd({incoming:data.incoming.filter(s=>s.id!==x.id)})}/>)}
+        {!data.incoming.filter(x=>x.recurring).length&&<div style={{fontSize:12,color:C.dim,padding:"6px 0 14px"}}>No recurring income yet</div>}
+        <SectionHead label="Monthly Bills"/>
+        {data.spending.filter(x=>x.recurring).map((x,i)=><Row key={x.id} i={i} left={x.label} right={`−${fmt(x.amount)}`} sub={x.category} accent={C.card2} recurring onDelete={()=>upd({spending:data.spending.filter(s=>s.id!==x.id)})}/>)}
+        {!data.spending.filter(x=>x.recurring).length&&<div style={{fontSize:12,color:C.dim,padding:"6px 0"}}>No recurring bills yet</div>}
+      </FullPanel>
+    ),
+
+    goals: (
+      <FullPanel bg={C.navy} onClose={()=>setPanel(null)} addLabel="Add Goal" onAdd={()=>{ setPanel(null); setModal("addG"); }}
+        hero={<>
+          <div style={{fontSize:8,letterSpacing:3,color:"rgba(255,255,255,0.4)",fontWeight:700,textTransform:"uppercase",marginBottom:4}}>Goals & Savings</div>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:36,color:C.white,lineHeight:1.15}}>Where you're<br/><em>heading</em></div>
+        </>}>
+        {data.goals.map((g,i)=>{
+          const pct=Math.min(100,(g.saved/g.target)*100);
+          return (
+            <div key={g.id} style={{background:C.white,borderRadius:16,padding:"16px 16px 14px",marginBottom:12,boxShadow:"0 1px 8px rgba(0,0,0,0.06)",animation:`rowUp 0.22s ease ${i*0.06}s both`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{fontSize:22}}>{g.emoji}</div>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:C.text}}>{g.label}</div>
+                    <div style={{fontSize:10,color:C.dim,marginTop:1}}>{fmt(g.saved)} of {fmt(g.target)}</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{fontFamily:"'DM Serif Display',serif",fontSize:22,color:g.color}}>{pct.toFixed(0)}%</div>
+                  <button onClick={()=>upd({goals:data.goals.filter(x=>x.id!==g.id)})} style={{background:"rgba(0,0,0,0.05)",border:"none",borderRadius:8,padding:"3px 7px",cursor:"pointer",fontSize:9,color:C.dim}}>✕</button>
+                </div>
+              </div>
+              <div style={{background:"#F0EDE7",borderRadius:6,height:6,overflow:"hidden"}}>
+                <div style={{width:`${pct}%`,height:"100%",background:g.color,borderRadius:6,transition:"width 0.5s ease"}}/>
+              </div>
+              <div style={{fontSize:9,color:C.dim,marginTop:5,letterSpacing:1}}>{fmt(g.target-g.saved)} remaining</div>
+            </div>
+          );
+        })}
+      </FullPanel>
+    ),
+  };
+
+  // ── Modals ──────────────────────────────────────────────────────────────────
+  const MODALS = {
+    addS: (
+      <Sheet title="Add Spending" onClose={()=>setModal(null)}>
+        <FieldRow label="Description"><Inp value={sF.label} onChange={e=>setSF(p=>({...p,label:e.target.value}))} placeholder="e.g. Lumber – Home Depot"/></FieldRow>
+        <FieldRow label="Amount ($)"><Inp type="number" value={sF.amount} onChange={e=>setSF(p=>({...p,amount:e.target.value}))} placeholder="0"/></FieldRow>
+        <FieldRow label="Date"><Inp value={sF.date} onChange={e=>setSF(p=>({...p,date:e.target.value}))} placeholder="Mar 22"/></FieldRow>
+        <FieldRow label="Category"><Sel value={sF.category} onChange={e=>setSF(p=>({...p,category:e.target.value}))} options={SP_CATS}/></FieldRow>
+        <Toggle value={sF.recurring} onChange={v=>setSF(p=>({...p,recurring:v}))} label="Recurring monthly"/>
+        <SaveBtn label="Add Transaction" color={C.card2} onClick={addS}/>
+      </Sheet>
+    ),
+    addI: (
+      <Sheet title="Add Income" onClose={()=>setModal(null)}>
+        <FieldRow label="Description"><Inp value={iF.label} onChange={e=>setIF(p=>({...p,label:e.target.value}))} placeholder="e.g. Deck Build – Torres"/></FieldRow>
+        <FieldRow label="Amount ($)"><Inp type="number" value={iF.amount} onChange={e=>setIF(p=>({...p,amount:e.target.value}))} placeholder="0"/></FieldRow>
+        <FieldRow label="Date"><Inp value={iF.date} onChange={e=>setIF(p=>({...p,date:e.target.value}))} placeholder="Mar 22"/></FieldRow>
+        <FieldRow label="Type"><Sel value={iF.type} onChange={e=>setIF(p=>({...p,type:e.target.value}))} options={["job","taxes","payments"]}/></FieldRow>
+        <FieldRow label="Status"><Sel value={iF.status} onChange={e=>setIF(p=>({...p,status:e.target.value}))} options={["confirmed","pending"]}/></FieldRow>
+        <Toggle value={iF.recurring} onChange={v=>setIF(p=>({...p,recurring:v}))} label="Recurring monthly"/>
+        <SaveBtn label="Add Income" color={C.card3} onClick={addI}/>
+      </Sheet>
+    ),
+    addG: (
+      <Sheet title="New Goal" onClose={()=>setModal(null)}>
+        <FieldRow label="Goal Name"><Inp value={gF.label} onChange={e=>setGF(p=>({...p,label:e.target.value}))} placeholder="e.g. Family Trip – Europe"/></FieldRow>
+        <FieldRow label="Emoji"><Inp value={gF.emoji} onChange={e=>setGF(p=>({...p,emoji:e.target.value}))} placeholder="✈️"/></FieldRow>
+        <FieldRow label="Target ($)"><Inp type="number" value={gF.target} onChange={e=>setGF(p=>({...p,target:e.target.value}))} placeholder="10000"/></FieldRow>
+        <FieldRow label="Already Saved ($)"><Inp type="number" value={gF.saved} onChange={e=>setGF(p=>({...p,saved:e.target.value}))} placeholder="0"/></FieldRow>
+        <FieldRow label="Color">
+          <div style={{display:"flex",gap:10,paddingTop:4}}>
+            {[C.card1,C.green,C.blue,C.card2,"#9B59B6"].map(col=>(
+              <div key={col} onClick={()=>setGF(p=>({...p,color:col}))} style={{width:28,height:28,borderRadius:"50%",background:col,cursor:"pointer",border:gF.color===col?"3px solid #1A1A1A":"3px solid transparent"}}/>
+            ))}
+          </div>
+        </FieldRow>
+        <SaveBtn label="Add Goal" color={C.navy} onClick={addG}/>
+      </Sheet>
+    ),
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  return (
+    <div style={{background:C.bg,minHeight:"100vh",fontFamily:"'DM Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column",maxWidth:430,margin:"0 auto",position:"relative",overflow:"hidden"}}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet"/>
+      <style>{`
+        @keyframes panelUp  { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        @keyframes sheetUp  { from{transform:translateY(100%)} to{transform:translateY(0)} }
+        @keyframes rowUp    { from{transform:translateY(12px);opacity:0} to{transform:translateY(0);opacity:1} }
+      `}</style>
+
+      {panel && PANELS[panel]}
+      {modal && MODALS[modal]}
+
+      {/* ── HEADER — clean, no buttons ── */}
+      <div style={{padding:"52px 24px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
+        <div>
+          <div style={{fontSize:9,letterSpacing:3,color:C.dim,fontWeight:700,textTransform:"uppercase"}}>My Finances</div>
+          <div style={{fontSize:11,color:C.dim,fontWeight:300}}>March 2026</div>
+        </div>
+        {/* Avatar only */}
+        <div style={{width:36,height:36,borderRadius:"50%",background:C.card3,display:"flex",alignItems:"center",justifyContent:"center",color:C.white,fontWeight:700,fontSize:14}}>J</div>
+      </div>
+
+      <div style={{padding:"16px 22px 32px",display:"flex",flexDirection:"column",gap:12,flex:1}}>
+
+        {/* ── BALANCE ── */}
+        <div onClick={()=>setExp(!expandAcc)} style={{background:C.card1,borderRadius:22,padding:"22px 24px 16px",position:"relative",overflow:"hidden",cursor:"pointer"}}>
+          <div style={{position:"absolute",right:-28,bottom:-28,width:140,height:140,borderRadius:"50%",background:"rgba(255,255,255,0.15)"}}/>
+          <div style={{fontSize:8,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(0,0,0,0.38)",marginBottom:4}}>Total Balance</div>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:46,lineHeight:1,color:C.text}}>{fmt(totalBal)}</div>
+          <div style={{fontSize:11,color:"rgba(0,0,0,0.42)",marginTop:5}}>
+            Net projected&nbsp;<span style={{fontWeight:700,color:net>=0?"#1A5C35":C.red}}>{fmt(net)}</span>
+          </div>
+          <div style={{maxHeight:expandAcc?200:0,overflow:"hidden",transition:"max-height 0.35s ease",marginTop:expandAcc?14:0}}>
+            <div style={{borderTop:"1px solid rgba(0,0,0,0.12)",paddingTop:12,display:"flex",flexDirection:"column",gap:7}}>
+              {data.accounts.map(a=>(
+                <div key={a.id} style={{display:"flex",justifyContent:"space-between"}}>
+                  <span style={{fontSize:12,color:"rgba(0,0,0,0.52)",fontWeight:300}}>{a.name}</span>
+                  <span style={{fontSize:12,fontWeight:700}}>{fmt2(a.balance)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{fontSize:7,letterSpacing:2,color:"rgba(0,0,0,0.26)",marginTop:8,textAlign:"right"}}>{expandAcc?"COLLAPSE ↑":"SEE ACCOUNTS ↓"}</div>
+        </div>
+
+        {/* ── SPEND / EARN — tap opens panel, small + adds ── */}
+        <div style={{display:"flex",gap:12}}>
+
+          {/* SPENDING */}
+          <div onClick={()=>setPanel("spending")} style={{flex:1,background:C.card2,borderRadius:22,padding:"20px 18px 36px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",right:-18,top:-18,width:90,height:90,borderRadius:"50%",background:"rgba(255,255,255,0.1)"}}/>
+            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:56,lineHeight:0.9,color:"rgba(255,255,255,0.9)",marginBottom:8}}>−</div>
+            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,color:C.white,lineHeight:1}}>{fmt(totalSpend)}</div>
+            <div style={{fontSize:8,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(255,255,255,0.42)",marginTop:5}}>Spending</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.32)",marginTop:2}}>{fmt(recCost)}/mo recurring</div>
+            <div style={{fontSize:7,letterSpacing:2,color:"rgba(255,255,255,0.25)",position:"absolute",bottom:12,left:18,fontWeight:700}}>TAP TO OPEN ↑</div>
+            <CardAddBtn onClick={()=>setModal("addS")}/>
+          </div>
+
+          {/* EARNING */}
+          <div onClick={()=>setPanel("earning")} style={{flex:1,background:C.card3,borderRadius:22,padding:"20px 18px 36px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",right:-18,top:-18,width:90,height:90,borderRadius:"50%",background:"rgba(255,255,255,0.07)"}}/>
+            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:56,lineHeight:0.9,color:"rgba(255,255,255,0.9)",marginBottom:8}}>+</div>
+            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:26,color:C.white,lineHeight:1}}>{fmt(totalInc)}</div>
+            <div style={{fontSize:8,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(255,255,255,0.42)",marginTop:5}}>Earning</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.32)",marginTop:2}}>{fmt(confInc)} confirmed</div>
+            <div style={{fontSize:7,letterSpacing:2,color:"rgba(255,255,255,0.25)",position:"absolute",bottom:12,left:18,fontWeight:700}}>TAP TO OPEN ↑</div>
+            <CardAddBtn onClick={()=>setModal("addI")}/>
+          </div>
+
+        </div>
+
+        {/* ── BOTTOM WALLET TABS ── */}
+        <div style={{display:"flex",gap:12}}>
+
+          {/* CASH FLOW */}
+          <div onClick={()=>setPanel("cashflow")} style={{flex:1,background:C.blue,borderRadius:18,padding:"16px 16px 14px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",right:-12,bottom:-12,width:60,height:60,borderRadius:"50%",background:"rgba(255,255,255,0.1)"}}/>
+            <div style={{fontSize:20,marginBottom:5,lineHeight:1,color:"rgba(255,255,255,0.8)"}}>〜</div>
+            <div style={{fontSize:7,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(255,255,255,0.45)",marginBottom:2}}>Cash Flow</div>
+            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:22,color:C.white,lineHeight:1}}>{fmt(cashFlow)}</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",marginTop:3}}>{pending.length} pending</div>
+          </div>
+
+          {/* RECURRING */}
+          <div onClick={()=>setPanel("recurring")} style={{flex:1,background:C.purple,borderRadius:18,padding:"16px 16px 14px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",right:-12,bottom:-12,width:60,height:60,borderRadius:"50%",background:"rgba(255,255,255,0.1)"}}/>
+            <div style={{fontSize:20,marginBottom:5,lineHeight:1,color:"rgba(255,255,255,0.8)"}}>↻</div>
+            <div style={{fontSize:7,letterSpacing:3,fontWeight:700,textTransform:"uppercase",color:"rgba(255,255,255,0.45)",marginBottom:2}}>Recurring</div>
+            <div style={{fontFamily:"'DM Serif Display',serif",fontSize:22,color:C.white,lineHeight:1}}>{fmt(recInc-recCost)}</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.38)",marginTop:3}}>{data.spending.filter(x=>x.recurring).length} bills</div>
+          </div>
+
+        </div>
+
+        {/* ── GOALS ── */}
+        <div onClick={()=>setPanel("goals")} style={{background:C.navy,borderRadius:18,padding:"16px 18px",cursor:"pointer",position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",right:-20,top:-20,width:100,height:100,borderRadius:"50%",background:"rgba(240,165,0,0.08)"}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div>
+              <div style={{fontSize:7,letterSpacing:3,color:"rgba(255,255,255,0.32)",fontWeight:700,textTransform:"uppercase",marginBottom:2}}>Goals & Savings</div>
+              <div style={{fontFamily:"'DM Serif Display',serif",fontSize:18,color:C.white}}>Where you're heading</div>
+            </div>
+            <div style={{fontSize:7,letterSpacing:2,color:"rgba(255,255,255,0.25)",fontWeight:700}}>OPEN ↑</div>
+          </div>
+          {data.goals.slice(0,3).map(g=>{
+            const pct=Math.min(100,(g.saved/g.target)*100);
+            return (
+              <div key={g.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                <div style={{fontSize:14}}>{g.emoji}</div>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                    <span style={{fontSize:10,color:"rgba(255,255,255,0.65)"}}>{g.label}</span>
+                    <span style={{fontSize:10,fontWeight:700,color:g.color}}>{pct.toFixed(0)}%</span>
+                  </div>
+                  <div style={{background:"rgba(255,255,255,0.1)",borderRadius:4,height:3,overflow:"hidden"}}>
+                    <div style={{width:`${pct}%`,height:"100%",background:g.color,borderRadius:4}}/>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {/* small add goal button */}
+          <button onClick={e=>{e.stopPropagation();setPanel(null);setModal("addG");}} style={{marginTop:10,background:"rgba(255,255,255,0.07)",border:"none",borderRadius:20,color:"rgba(255,255,255,0.4)",padding:"5px 14px",fontSize:8,letterSpacing:2,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase"}}>+ Add Goal</button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
